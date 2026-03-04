@@ -68,7 +68,7 @@ void BLEServerController::begin() {
    Serial.printf("[BLE] Advertising? %s\n", adv->isAdvertising() ? "yes" : "no");
 }
 
-void BLEServerController::setFrameHandler(FrameCallback cb, void* obj_ptr) {
+void BLEServerController::setFrameHandler(Proto::FrameCallback cb, void* obj_ptr) {
    _cb = cb;
    _cb_obj_ptr = obj_ptr;
 }

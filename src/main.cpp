@@ -1,103 +1,235 @@
+#include <ESP32Servo.h>
+#include "generic_ble_joycon.hpp"
 
-#include <Arduino.h>
-#include "ble_server_controller.hpp"
-#include "ble_msg_ids.hpp"
-
-#include "joy_con_msg.hpp"
-#include "establish_msg.hpp"
-
-BLEServerController ble;
-
-
-static inline float unscaleStick(int8_t v) {
-   // Example: map [-100..100] to [-1.0..1.0]
-   return static_cast<float>(v) / 100.0f;
-}
-
-rx_joy_con_msg_t joy_msg{};
+GenericBleJoycon ble_joycon;
 
 // Plain C callback invoked for every valid Proto frame
-void onFrameReceived(const Proto::Frame& frame, void* ctx) {
+void extra_frame_processing(const Proto::Frame& frame, void* ctx) {
    (void)ctx;
    
    switch (frame.msg_id) {
-      case GC_BLE_MSG::JOYCON: {
-         std::memcpy(&joy_msg, frame.payload.data(), sizeof(joy_msg));
-         
-         float lx = joy_msg.left_x*0.01f;
-         float ly = joy_msg.left_y*0.01f;
-         
-         float rx = joy_msg.right_x*0.01f;
-         float ry = joy_msg.right_y*0.01f;
-         
-         Serial.print("[JOY] L("); Serial.print(lx, 2); Serial.print(", "); Serial.print(ly, 2);
-         Serial.print(") R("); Serial.print(rx, 2); Serial.print(", "); Serial.print(ry, 2);
-         Serial.print(") btns=0x"); 
-         uint8_t btns_raw =
-            (joy_msg.btns.btn_a ? 0x80 : 0) |
-            (joy_msg.btns.btn_b ? 0x40 : 0) |
-            (joy_msg.btns.btn_x ? 0x20 : 0) |
-            (joy_msg.btns.btn_y ? 0x10 : 0) |
-            (joy_msg.btns.dpad_l ? 0x08 : 0) |
-            (joy_msg.btns.dpad_u ? 0x04 : 0) |
-            (joy_msg.btns.dpad_r ? 0x02 : 0) |
-            (joy_msg.btns.dpad_d ? 0x01 : 0);
-         Serial.print(btns_raw, HEX);
-         
-         Serial.print(" max="); Serial.print(joy_msg.max_throttle);
-         Serial.print(" trim="); Serial.print(joy_msg.trim);
-         Serial.print(" flags=0x"); 
-         uint8_t flags_raw =
-            (joy_msg.flags.is_single_stick ? 0x80 : 0) |
-            (joy_msg.flags.is_left_single_stick ? 0x40 : 0);
-         Serial.print(flags_raw, HEX);
-         
-         Serial.print(" cnt="); Serial.println(joy_msg.msg_idx);
-      }
-      break;
-      
-      case GC_BLE_MSG::ESTAB_CON: {
-         rx_establish_t rx_msg{};
-         std::memcpy(&rx_msg, frame.payload.data(), sizeof(rx_msg));
-         
-         rx_establish_t tx_msg{};
-         ble.sendMessage(
-            static_cast<uint8_t>(GC_BLE_MSG::ESTAB_CON), 
-            reinterpret_cast<const uint8_t*>(&tx_msg), 
-            sizeof(tx_msg)
-         );
-      }
-      break;
-      
       default:
-         Serial.print(" Unregistered msg: ");
+         Serial.print(" Extra msg to parse: ");
          Serial.println(frame.msg_id);
       break;
    }
 }
 
+#define L_IN1  4
+#define L_IN2  2
+#define R_IN1  18
+#define R_IN2  5
+
+#define LI_IN1 19
+#define LI_IN2 21
+
+Servo bucket;
+int bucket_pos;
+int bucket_pivot;
+int bucket_speed = 3;
+
+void applyDeadzone(stick_t& stick, const float& deadzone) {
+   if(fabs(stick.x) < deadzone) stick.x = 0.0f;
+   if(fabs(stick.y) < deadzone) stick.y = 0.0f;
+}
+// DRV8833 motor driver function (PWM–PWM mode)
+void driveHBridge(uint8_t in1, uint8_t in2, int value) {
+   // forward
+   if(value > 0) {
+      analogWrite(in1, value);
+      analogWrite(in2, 0);
+   }
+   // reverse
+   else if(value < 0) {
+      analogWrite(in1, 0);
+      analogWrite(in2, -value);
+   }
+   // stop / coast
+   else{
+      analogWrite(in1, 0);
+      analogWrite(in2, 0);
+   }
+}
+void singleJoystickControl(
+   const float& x, const float& y,
+   float& left_spd, float& right_spd
+){
+   // FWD
+   if(y > 0.0f) {
+      // FWD with Right Turn
+      if(x > 0.0f) {
+         float offset_pwr = fabs(y - x);
+         // Is our turning force larger than fwd force
+         if(offset_pwr > y) {
+            left_spd = offset_pwr;
+            right_spd = y;
+         }
+         else {
+            left_spd = y;
+            right_spd = offset_pwr;
+         }
+      }
+      // FWD with Left Turn
+      else if(x < 0.0f) {
+         float offset_pwr = fabs(y + x);
+         // Is our turning force larger than fwd force
+         if(offset_pwr > y) {
+            right_spd = offset_pwr;
+            left_spd = y;
+         }
+         else {
+            right_spd = y;
+            left_spd = offset_pwr;
+         }
+      }
+      // FWD Only
+      else {
+         left_spd = y;
+         right_spd = y;
+      }
+   } 
+   // BWD
+   else if(y < 0.0f) {
+      float pos_y = -y;
+      // BWD with Right Turn
+      if(x > 0.0f) {
+         float offset_pwr = fabs(pos_y - x);
+         // Is our turning force larger than fwd force
+         if(offset_pwr > pos_y) {
+            right_spd = -offset_pwr;
+            left_spd = -pos_y;
+         }
+         else {
+            right_spd = -pos_y;
+            left_spd = -offset_pwr;
+         }
+      }
+      // BWD with Left Turn
+      else if(x < 0.0f) {
+         float offset_pwr = fabs(pos_y + x);
+         // Is our turning force larger than fwd force
+         if(offset_pwr > pos_y) {
+            left_spd = -offset_pwr;
+            right_spd = -pos_y;
+         }
+         else {
+            left_spd = -pos_y;
+            right_spd = -offset_pwr;
+         }
+      }
+      // BWD Only
+      else {
+         left_spd = -pos_y;
+         right_spd = -pos_y;
+      }
+   }
+   
+   // Turn Only
+   else {
+      // Right Turn
+      if(x > 0.0f) {
+         right_spd = -x;
+         left_spd = x;
+      }
+      // Left Turn
+      else if(x < 0.0f) {
+         right_spd = -x;
+         left_spd = x;
+      }
+      // Stopping
+      else {
+         right_spd = 0.0f;
+         left_spd = 0.0f;
+      }
+   }
+}
 
 void setup() {
    Serial.begin(115200);
    while(!Serial);
    
-   Serial.println("\n[BOOT] BLE Protocol Example (no lambdas)");
+   pinMode(L_IN1, OUTPUT);
+   pinMode(L_IN2, OUTPUT);
+   pinMode(R_IN1, OUTPUT);
+   pinMode(R_IN2, OUTPUT);
    
-   ble.begin();
-   ble.setFrameHandler(&onFrameReceived, /*ctx*/ nullptr);
+   bucket.attach(23);
+   bucket.write(116);
+   
+   Serial.println("\n[BOOT] BLE Protocol Example (no lambdas)");
+   ble_joycon.setFrameExtra(&extra_frame_processing);
+   ble_joycon.setup();
+   ble_joycon.start();
+
 }
 
 // uint32_t lastPing = 0;
 
 void loop() {
-   // if (ble.isConnected()) {
+   // if (ble_joycon.isConnected()) {
    //    uint32_t now = millis();
    //    if (now - lastPing > 5000) {
    //       const char* txt = "ping";
-   //       ble.sendMessage(GC_BLE_MSG::PING, reinterpret_cast<const uint8_t*>(txt), strlen(txt));
+   //       ble_joycon.sendMessage(GC_BLE_MSG::PING, reinterpret_cast<const uint8_t*>(txt), strlen(txt));
    //       lastPing = now;
    //       Serial.println("[TX] Sent PING");
    //    }
    // }
+   if(!ble_joycon.isConnected()) {
+      driveHBridge(L_IN1, L_IN2, 0);
+      driveHBridge(R_IN1, R_IN2, 0);
+      return;
+   }
+   
+   float left_spd = 0.0f;
+   float right_spd = 0.0f;
+   
+   stick_t left = ble_joycon.getLeftStick();
+   stick_t right = ble_joycon.getRightStick();
+   applyDeadzone(left, 0.10f);
+   applyDeadzone(right, 0.10f);
+   
+   if(ble_joycon.isSingleStick()) {
+      if(ble_joycon.isLeftSingleStick()) {
+         singleJoystickControl(left.x, left.y, left_spd, right_spd);
+      }
+      // Right Stick
+      else {
+         singleJoystickControl(right.x, right.y, left_spd, right_spd);
+      }
+   }
+   // Dual Stick Drive (Y-Axis Drive)
+   else {
+      left_spd = left.y;
+      right_spd = right.y;
+   }
+   
+   if(ble_joycon.isDpadUpPressed()) {
+      bucket_pos += bucket_speed;
+      if(bucket_pos > 255) bucket_pos = 255;
+   }
+   else if(ble_joycon.isDpadDownPressed()) {
+      bucket_pos -= bucket_speed;
+      if(bucket_pos < -255) bucket_pos = -255;
+   }
+   
+   if(ble_joycon.isDpadRightPressed()) {
+      bucket_pivot += bucket_speed;
+      if(bucket_pivot > 116) bucket_pivot = 116;
+   }
+   else if(ble_joycon.isDpadLeftPressed()) {
+      bucket_pivot -= bucket_speed;
+      if(bucket_pivot < 0) bucket_pivot = 0;
+   }
+   
+   int leftPWM  = left_spd  * 255;
+   int rightPWM = right_spd * 255;
+   
+   // Output
+   driveHBridge(L_IN1, L_IN2, leftPWM);
+   driveHBridge(R_IN1, R_IN2, rightPWM);
+   driveHBridge(LI_IN1, LI_IN2, bucket_pos);
+   bucket.write(bucket_pivot);
+   
    delay(10);
 }

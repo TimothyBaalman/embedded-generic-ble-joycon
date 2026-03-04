@@ -16,13 +16,13 @@
 class BLEServerController {
     public:
         // Simple C-style callback: frame + user-provided context
-        using FrameCallback = void(*)(const Proto::Frame&, void*);
+        
         
         BLEServerController();
         void begin();
         
         // Register a handler without lambdas/std::function
-        void setFrameHandler(FrameCallback cb, void* obj_ptr = nullptr);
+        void setFrameHandler(Proto::FrameCallback cb, void* obj_ptr = nullptr);
         
         bool isConnected() const;
         bool sendMessage(const uint8_t& msg_id, const std::vector<uint8_t>& payload);
@@ -56,6 +56,6 @@ class BLEServerController {
         volatile bool _connected{false};
         
         // Stored callback + opaque context pointer
-        FrameCallback _cb{nullptr};
+        Proto::FrameCallback _cb{nullptr};
         void* _cb_obj_ptr{nullptr};
 };
