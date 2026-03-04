@@ -200,8 +200,8 @@ void loop() {
    }
    // Dual Stick Drive (Y-Axis Drive)
    else {
-      left_spd = left.y;
-      right_spd = right.y;
+      left_spd = -left.y;
+      right_spd = -right.y;
    }
    
    if(ble_joycon.isDpadUpPressed()) {
