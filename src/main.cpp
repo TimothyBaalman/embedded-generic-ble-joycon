@@ -191,11 +191,11 @@ void loop() {
    
    if(ble_joycon.isSingleStick()) {
       if(ble_joycon.isLeftSingleStick()) {
-         singleJoystickControl(left.x, left.y, left_spd, right_spd);
+         singleJoystickControl(left.x, -left.y, left_spd, right_spd);
       }
       // Right Stick
       else {
-         singleJoystickControl(right.x, right.y, left_spd, right_spd);
+         singleJoystickControl(right.x, -right.y, left_spd, right_spd);
       }
    }
    // Dual Stick Drive (Y-Axis Drive)
@@ -205,12 +205,13 @@ void loop() {
    }
    
    if(ble_joycon.isDpadUpPressed()) {
-      bucket_pos += bucket_speed;
-      if(bucket_pos > 255) bucket_pos = 255;
+      bucket_pos = -255;
    }
    else if(ble_joycon.isDpadDownPressed()) {
-      bucket_pos -= bucket_speed;
-      if(bucket_pos < -255) bucket_pos = -255;
+      bucket_pos = 255;
+   }
+   else {
+      bucket_pos = 0;
    }
    
    if(ble_joycon.isDpadRightPressed()) {
