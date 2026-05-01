@@ -15,18 +15,20 @@ void extra_frame_processing(const Proto::Frame& frame, void* ctx) {
    }
 }
 
-#define L_IN1  4
-#define L_IN2  2
-#define R_IN1  18
-#define R_IN2  5
+#define L_IN1  12
+#define L_IN2  14
+#define R_IN1  15
+#define R_IN2  13
 
-#define LI_IN1 19
-#define LI_IN2 21
+#define LI_IN1 17
+#define LI_IN2 16
+
+#define motorEnable 26
 
 Servo bucket;
-int bucket_pos;
+int lifter_pos;
 int bucket_pivot;
-int bucket_speed = 3;
+int lifter_speed = 3;
 
 void applyDeadzone(stick_t& stick, const float& deadzone) {
    if(fabs(stick.x) < deadzone) stick.x = 0.0f;
@@ -145,18 +147,20 @@ void singleJoystickControl(
 }
 
 void setup() {
-   Serial.begin(115200);
-   while(!Serial);
+   // Serial.begin(115200);
+   // while(!Serial);
    
    pinMode(L_IN1, OUTPUT);
    pinMode(L_IN2, OUTPUT);
    pinMode(R_IN1, OUTPUT);
    pinMode(R_IN2, OUTPUT);
+   pinMode(motorEnable, OUTPUT);
+   digitalWrite(motorEnable, 0);
    
-   bucket.attach(23);
+   bucket.attach(22);
    bucket.write(116);
    
-   Serial.println("\n[BOOT] BLE Protocol Example (no lambdas)");
+   // Serial.println("\n[BOOT] BLE Protocol Example (no lambdas)");
    ble_joycon.setFrameExtra(&extra_frame_processing);
    ble_joycon.setup();
    ble_joycon.start();
@@ -205,21 +209,21 @@ void loop() {
    }
    
    if(ble_joycon.isDpadUpPressed()) {
-      bucket_pos = -255;
+      lifter_pos = -255;
    }
    else if(ble_joycon.isDpadDownPressed()) {
-      bucket_pos = 255;
+      lifter_pos = 255;
    }
    else {
-      bucket_pos = 0;
+      lifter_pos = 0;
    }
    
    if(ble_joycon.isDpadRightPressed()) {
-      bucket_pivot += bucket_speed;
+      bucket_pivot += lifter_speed;
       if(bucket_pivot > 116) bucket_pivot = 116;
    }
    else if(ble_joycon.isDpadLeftPressed()) {
-      bucket_pivot -= bucket_speed;
+      bucket_pivot -= lifter_speed;
       if(bucket_pivot < 0) bucket_pivot = 0;
    }
    
@@ -227,10 +231,11 @@ void loop() {
    int rightPWM = right_spd * 255;
    
    // Output
+   digitalWrite(motorEnable, 1);
    driveHBridge(L_IN1, L_IN2, leftPWM);
-   driveHBridge(R_IN1, R_IN2, rightPWM);
-   driveHBridge(LI_IN1, LI_IN2, bucket_pos);
+   driveHBridge(R_IN2, R_IN1, rightPWM);
+   driveHBridge(LI_IN1, LI_IN2, lifter_pos);
    bucket.write(bucket_pivot);
    
-   delay(10);
+   delay(20);
 }
