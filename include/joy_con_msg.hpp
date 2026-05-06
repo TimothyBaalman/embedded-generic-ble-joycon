@@ -15,9 +15,14 @@ struct __attribute__((packed)) joy_con_btns_t {
 };
 
 struct __attribute__((packed)) joy_con_flags_t {
-   uint8_t reserved : 6;
-   uint8_t is_left_single_stick : 1;
-   uint8_t is_single_stick : 1;
+   uint8_t flag_0 : 1;
+   uint8_t flag_1 : 1;
+   uint8_t flag_2 : 1;
+   uint8_t flag_3 : 1;
+   uint8_t flag_4 : 1;
+   uint8_t flag_5 : 1;
+   uint8_t flag_6 : 1;
+   uint8_t flag_7 : 1;
 };
 
 struct __attribute__((packed)) rx_joy_con_msg_t {
@@ -26,8 +31,8 @@ struct __attribute__((packed)) rx_joy_con_msg_t {
    int8_t right_x = 0; // scale 0.01 Left - ... Right +
    int8_t right_y = 0; // scale 0.01 Up - ... Down +
    joy_con_btns_t btns;
-   int8_t max_throttle = 0; // scale 0.01
-   int8_t trim = 0; // scale 0.01
+   int8_t slider2 = 0; // scale 0.01
+   int8_t slider1 = 0; // scale 0.01
    joy_con_flags_t flags;
    
    uint8_t msg_idx = 0;

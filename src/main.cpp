@@ -17,23 +17,24 @@ void extra_frame_processing(const Proto::Frame& frame, void* ctx) {
 
 #define L_IN1  12
 #define L_IN2  14
-#define R_IN1  15
-#define R_IN2  13
+#define R_IN1  13
+#define R_IN2  15
 
 #define LI_IN1 17
 #define LI_IN2 16
 
 #define motorEnable 26
 
-Servo bucket;
-int lifter_pos;
-int bucket_pivot;
-int lifter_speed = 3;
+#define BUCKET_PIVOT_MIN -180 // min bucket pivot angle (servo write value)
+#define BUCKET_PIVOT_MAX 180 // max bucket pivot angle (servo write value)
+#define BUCKET_PIVOT_SPEED 3 // Speed at which the bucket pivots (1-10, adjust as needed)
 
-void applyDeadzone(stick_t& stick, const float& deadzone) {
-   if(fabs(stick.x) < deadzone) stick.x = 0.0f;
-   if(fabs(stick.y) < deadzone) stick.y = 0.0f;
-}
+#define LIFT_SPEED 255 // Max speed for the lifter motor (0-255)
+
+Servo bucket;
+int lifter_cmd;
+int bucket_pivot;
+
 // DRV8833 motor driver function (PWM–PWM mode)
 void driveHBridge(uint8_t in1, uint8_t in2, int value) {
    // forward
@@ -50,99 +51,6 @@ void driveHBridge(uint8_t in1, uint8_t in2, int value) {
    else{
       analogWrite(in1, 0);
       analogWrite(in2, 0);
-   }
-}
-void singleJoystickControl(
-   const float& x, const float& y,
-   float& left_spd, float& right_spd
-){
-   // FWD
-   if(y > 0.0f) {
-      // FWD with Right Turn
-      if(x > 0.0f) {
-         float offset_pwr = fabs(y - x);
-         // Is our turning force larger than fwd force
-         if(offset_pwr > y) {
-            left_spd = offset_pwr;
-            right_spd = y;
-         }
-         else {
-            left_spd = y;
-            right_spd = offset_pwr;
-         }
-      }
-      // FWD with Left Turn
-      else if(x < 0.0f) {
-         float offset_pwr = fabs(y + x);
-         // Is our turning force larger than fwd force
-         if(offset_pwr > y) {
-            right_spd = offset_pwr;
-            left_spd = y;
-         }
-         else {
-            right_spd = y;
-            left_spd = offset_pwr;
-         }
-      }
-      // FWD Only
-      else {
-         left_spd = y;
-         right_spd = y;
-      }
-   } 
-   // BWD
-   else if(y < 0.0f) {
-      float pos_y = -y;
-      // BWD with Right Turn
-      if(x > 0.0f) {
-         float offset_pwr = fabs(pos_y - x);
-         // Is our turning force larger than fwd force
-         if(offset_pwr > pos_y) {
-            right_spd = -offset_pwr;
-            left_spd = -pos_y;
-         }
-         else {
-            right_spd = -pos_y;
-            left_spd = -offset_pwr;
-         }
-      }
-      // BWD with Left Turn
-      else if(x < 0.0f) {
-         float offset_pwr = fabs(pos_y + x);
-         // Is our turning force larger than fwd force
-         if(offset_pwr > pos_y) {
-            left_spd = -offset_pwr;
-            right_spd = -pos_y;
-         }
-         else {
-            left_spd = -pos_y;
-            right_spd = -offset_pwr;
-         }
-      }
-      // BWD Only
-      else {
-         left_spd = -pos_y;
-         right_spd = -pos_y;
-      }
-   }
-   
-   // Turn Only
-   else {
-      // Right Turn
-      if(x > 0.0f) {
-         right_spd = -x;
-         left_spd = x;
-      }
-      // Left Turn
-      else if(x < 0.0f) {
-         right_spd = -x;
-         left_spd = x;
-      }
-      // Stopping
-      else {
-         right_spd = 0.0f;
-         left_spd = 0.0f;
-      }
    }
 }
 
@@ -170,72 +78,61 @@ void setup() {
 // uint32_t lastPing = 0;
 
 void loop() {
-   // if (ble_joycon.isConnected()) {
-   //    uint32_t now = millis();
-   //    if (now - lastPing > 5000) {
-   //       const char* txt = "ping";
-   //       ble_joycon.sendMessage(GC_BLE_MSG::PING, reinterpret_cast<const uint8_t*>(txt), strlen(txt));
-   //       lastPing = now;
-   //       Serial.println("[TX] Sent PING");
-   //    }
-   // }
+   
    if(!ble_joycon.isConnected()) {
       driveHBridge(L_IN1, L_IN2, 0);
       driveHBridge(R_IN1, R_IN2, 0);
+      digitalWrite(motorEnable, 0);
       return;
    }
-   
-   float left_spd = 0.0f;
-   float right_spd = 0.0f;
-   
-   stick_t left = ble_joycon.getLeftStick();
-   stick_t right = ble_joycon.getRightStick();
-   applyDeadzone(left, 0.10f);
-   applyDeadzone(right, 0.10f);
-   
-   if(ble_joycon.isSingleStick()) {
-      if(ble_joycon.isLeftSingleStick()) {
-         singleJoystickControl(left.x, -left.y, left_spd, right_spd);
+
+   bool is_single_stick = ble_joycon.getFlag0();
+   bool is_right_stick_drive = ble_joycon.getFlag1();
+
+   if(is_single_stick){
+      // Single Stick Mode
+      if(is_right_stick_drive){
+         // right stick drive
+         driveHBridge(R_IN1, R_IN2, (-ble_joycon.getRightStick().x - ble_joycon.getRightStick().y)*255);
+         driveHBridge(L_IN1, L_IN2, (ble_joycon.getRightStick().x - ble_joycon.getRightStick().y)*255);
+         bucket_pivot += -ble_joycon.getLeftStick().x * BUCKET_PIVOT_SPEED; // Adjust sensitivity as needed
+         if(bucket_pivot > BUCKET_PIVOT_MAX) bucket_pivot = BUCKET_PIVOT_MAX;
+         if(bucket_pivot < BUCKET_PIVOT_MIN) bucket_pivot = BUCKET_PIVOT_MIN;
+         bucket.write(bucket_pivot);
+         lifter_cmd = -ble_joycon.getLeftStick().y * LIFT_SPEED;
+         driveHBridge(LI_IN1, LI_IN2, lifter_cmd);
       }
-      // Right Stick
-      else {
-         singleJoystickControl(right.x, -right.y, left_spd, right_spd);
+      else
+      {
+         // left stick drive
+         driveHBridge(R_IN1, R_IN2, (-ble_joycon.getLeftStick().x - ble_joycon.getLeftStick().y)*255);
+         driveHBridge(L_IN1, L_IN2, (ble_joycon.getLeftStick().x - ble_joycon.getLeftStick().y)*255);
+         bucket_pivot += -ble_joycon.getRightStick().x * BUCKET_PIVOT_SPEED; // Adjust sensitivity as needed
+         if(bucket_pivot > BUCKET_PIVOT_MAX) bucket_pivot = BUCKET_PIVOT_MAX;
+         if(bucket_pivot < BUCKET_PIVOT_MIN) bucket_pivot = BUCKET_PIVOT_MIN;
+         bucket.write(bucket_pivot);
+         lifter_cmd = -ble_joycon.getRightStick().y * LIFT_SPEED;
+         driveHBridge(LI_IN1, LI_IN2, lifter_cmd);
       }
+
    }
-   // Dual Stick Drive (Y-Axis Drive)
-   else {
-      left_spd = -left.y;
-      right_spd = -right.y;
-   }
-   
-   if(ble_joycon.isDpadUpPressed()) {
-      lifter_pos = -255;
-   }
-   else if(ble_joycon.isDpadDownPressed()) {
-      lifter_pos = 255;
-   }
-   else {
-      lifter_pos = 0;
-   }
-   
-   if(ble_joycon.isDpadRightPressed()) {
-      bucket_pivot += lifter_speed;
-      if(bucket_pivot > 116) bucket_pivot = 116;
-   }
-   else if(ble_joycon.isDpadLeftPressed()) {
-      bucket_pivot -= lifter_speed;
-      if(bucket_pivot < 0) bucket_pivot = 0;
+   else
+   {
+      // Dual Stick Mode
+      // Left Stick X axis controls bucket pivot, Left Stick Y axis controls left motor
+      driveHBridge(L_IN1, L_IN2, -ble_joycon.getLeftStick().y * 255);
+      bucket_pivot += -ble_joycon.getLeftStick().x * BUCKET_PIVOT_SPEED; // Adjust sensitivity as needed
+      if(bucket_pivot > BUCKET_PIVOT_MAX) bucket_pivot = BUCKET_PIVOT_MAX;
+      if(bucket_pivot < BUCKET_PIVOT_MIN) bucket_pivot = BUCKET_PIVOT_MIN;
+      bucket.write(bucket_pivot);
+
+      // Right Stick X axis controls arm speed, Right Stick Y axis controls right motor
+      driveHBridge(R_IN1, R_IN2, -ble_joycon.getRightStick().y * 255);
+      lifter_cmd = -ble_joycon.getRightStick().x * 255; // Adjust sensitivity as needed
+      driveHBridge(LI_IN1, LI_IN2, lifter_cmd);
    }
    
-   int leftPWM  = left_spd  * 255;
-   int rightPWM = right_spd * 255;
-   
-   // Output
    digitalWrite(motorEnable, 1);
-   driveHBridge(L_IN1, L_IN2, leftPWM);
-   driveHBridge(R_IN2, R_IN1, rightPWM);
-   driveHBridge(LI_IN1, LI_IN2, lifter_pos);
-   bucket.write(bucket_pivot);
    
    delay(20);
 }

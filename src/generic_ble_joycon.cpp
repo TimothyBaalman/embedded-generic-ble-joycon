@@ -28,12 +28,12 @@ stick_t GenericBleJoycon::getRightStick() {
    return stick;
 }
 
-float GenericBleJoycon::getMaxThrottle() {
-   return static_cast<float>(_joy_msg.max_throttle)*0.01f;
+float GenericBleJoycon::getSlider1() {
+   return static_cast<float>(_joy_msg.slider1)*0.01f;
 }
 
-float GenericBleJoycon::getTrim() {
-   return static_cast<float>(_joy_msg.trim)*0.01f;
+float GenericBleJoycon::getSlider2() {
+   return static_cast<float>(_joy_msg.slider2)*0.01f;
 }
 
 bool GenericBleJoycon::isBtnADown() {
@@ -68,53 +68,12 @@ bool GenericBleJoycon::isDpadDownPressed() {
    return _joy_msg.btns.dpad_d;
 }
 
-bool GenericBleJoycon::isSingleStick() {
-   return _joy_msg.flags.is_single_stick;
-}
-
-bool GenericBleJoycon::isLeftSingleStick() {
-   return _joy_msg.flags.is_left_single_stick;
-}
-
 void GenericBleJoycon::onFrameReceived(const Proto::Frame& frame, void* ctx) {
    (void)ctx;
    
    switch (frame.msg_id) {
       case GC_BLE_MSG::JOYCON: {
          std::memcpy(&_joy_msg, frame.payload.data(), sizeof(_joy_msg));
-         
-         // float left_x = _joy_msg.left_x*0.01f;
-         // float left_y = _joy_msg.left_y*0.01f;
-         //
-         // float right_x = _joy_msg.right_x*0.01f;
-         // float right_y = _joy_msg.right_y*0.01f;
-         //
-         // float max_throttle = _joy_msg.max_throttle*0.01f;
-         // float trim = _joy_msg.trim*0.01f;
-         //
-         // Serial.print("[JOY] L("); Serial.print(left_x, 2); Serial.print(", "); Serial.print(left_y, 2);
-         // Serial.print(") R("); Serial.print(right_x, 2); Serial.print(", "); Serial.print(right_y, 2);
-         // Serial.print(") btns=0x"); 
-         // uint8_t btns_raw =
-         //    (_joy_msg.btns.btn_a ? 0x80 : 0) |
-         //    (_joy_msg.btns.btn_b ? 0x40 : 0) |
-         //    (_joy_msg.btns.btn_x ? 0x20 : 0) |
-         //    (_joy_msg.btns.btn_y ? 0x10 : 0) |
-         //    (_joy_msg.btns.dpad_l ? 0x08 : 0) |
-         //    (_joy_msg.btns.dpad_u ? 0x04 : 0) |
-         //    (_joy_msg.btns.dpad_r ? 0x02 : 0) |
-         //    (_joy_msg.btns.dpad_d ? 0x01 : 0);
-         // Serial.print(btns_raw, HEX);
-         //
-         // Serial.print(" max="); Serial.print(max_throttle);
-         // Serial.print(" trim="); Serial.print(trim);
-         // Serial.print(" flags=0x"); 
-         // uint8_t flags_raw =
-         //    (_joy_msg.flags.is_single_stick ? 0x80 : 0) |
-         //    (_joy_msg.flags.is_left_single_stick ? 0x40 : 0);
-         // Serial.print(flags_raw, HEX);
-         //
-         // Serial.print(" cnt="); Serial.println(_joy_msg.msg_idx);
       }
       break;
       

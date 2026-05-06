@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <Arduino.h>
 #include "ble_msg_ids.hpp"
 
 namespace Proto {

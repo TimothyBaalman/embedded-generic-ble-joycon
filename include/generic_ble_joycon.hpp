@@ -21,8 +21,8 @@ class GenericBleJoycon : public BLEServerController{
       
       stick_t getLeftStick();
       stick_t getRightStick();
-      float getMaxThrottle();
-      float getTrim();
+      float getSlider1();
+      float getSlider2();
       
       bool isBtnADown();
       bool isBtnBDown();
@@ -33,9 +33,31 @@ class GenericBleJoycon : public BLEServerController{
       bool isDpadUpPressed();
       bool isDpadRightPressed();
       bool isDpadDownPressed();
-      
-      bool isSingleStick();
-      bool isLeftSingleStick();
+
+      bool getFlag0() {
+         return _joy_msg.flags.flag_0;
+      }
+      bool getFlag1() {
+         return _joy_msg.flags.flag_1;
+      }
+      bool getFlag2() {
+         return _joy_msg.flags.flag_2;
+      }
+      bool getFlag3() {
+         return _joy_msg.flags.flag_3;
+      }
+      bool getFlag4() {
+         return _joy_msg.flags.flag_4;
+      }
+      bool getFlag5() {
+         return _joy_msg.flags.flag_5;
+      }
+      bool getFlag6() {
+         return _joy_msg.flags.flag_6;
+      }
+      bool getFlag7() {
+         return _joy_msg.flags.flag_7;
+      }
    
    protected:
       
