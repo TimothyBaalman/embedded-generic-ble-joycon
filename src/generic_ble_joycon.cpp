@@ -137,8 +137,10 @@ void GenericBleJoycon::onFrameReceived(const Proto::Frame& frame, void* ctx) {
             _extras_cb(frame, this);
          } 
          else {
-            Serial.print("[BLE] Unhandled msg: 0x");
-            Serial.println(frame.msg_id, HEX);
+            #ifdef DEBUG
+               Serial.print("[BLE] Unhandled msg: 0x");
+               Serial.println(frame.msg_id, HEX);
+            #endif
          }
       break;
    }

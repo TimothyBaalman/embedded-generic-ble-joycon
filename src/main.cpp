@@ -1,5 +1,6 @@
 #include <ESP32Servo.h>
 #include "generic_ble_joycon.hpp"
+#include <functional>
 
 GenericBleJoycon ble_joycon;
 
@@ -9,8 +10,10 @@ void extra_frame_processing(const Proto::Frame& frame, void* ctx) {
    
    switch (frame.msg_id) {
       default:
-         Serial.print(" Extra msg to parse: ");
-         Serial.println(frame.msg_id);
+         #ifdef DEBUG
+            Serial.print(" Extra msg to parse: ");
+            Serial.println(frame.msg_id);
+         #endif
       break;
    }
 }
@@ -147,8 +150,10 @@ void singleJoystickControl(
 }
 
 void setup() {
-   // Serial.begin(115200);
-   // while(!Serial);
+   #ifdef DEBUG
+      Serial.begin(115200);
+      while(!Serial){delay(5);};
+   #endif
    
    pinMode(L_IN1, OUTPUT);
    pinMode(L_IN2, OUTPUT);
@@ -159,8 +164,9 @@ void setup() {
    
    bucket.attach(22);
    bucket.write(116);
-   
-   // Serial.println("\n[BOOT] BLE Protocol Example (no lambdas)");
+   #ifdef DEBUG
+      Serial.println("\n[BOOT] BLE Protocol Example (no lambdas)");
+   #endif
    ble_joycon.setFrameExtra(&extra_frame_processing);
    ble_joycon.setup();
    ble_joycon.start();
@@ -182,6 +188,7 @@ void loop() {
    if(!ble_joycon.isConnected()) {
       driveHBridge(L_IN1, L_IN2, 0);
       driveHBridge(R_IN1, R_IN2, 0);
+      delay(20);
       return;
    }
    

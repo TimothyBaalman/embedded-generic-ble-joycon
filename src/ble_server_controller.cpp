@@ -63,9 +63,10 @@ void BLEServerController::begin() {
    
    // Start indefinite advertising (argument 0 = no timeout in v2.x)
    adv->start(0);
-   
-   Serial.printf("[BLE] Addr: %s\n", NimBLEDevice::getAddress().toString().c_str());
-   Serial.printf("[BLE] Advertising? %s\n", adv->isAdvertising() ? "yes" : "no");
+   #ifdef DEBUG
+      Serial.printf("[BLE] Addr: %s\n", NimBLEDevice::getAddress().toString().c_str());
+      Serial.printf("[BLE] Advertising? %s\n", adv->isAdvertising() ? "yes" : "no");
+   #endif
 }
 
 void BLEServerController::setFrameHandler(Proto::FrameCallback cb, void* obj_ptr) {
@@ -101,7 +102,9 @@ void BLEServerController::RxCallbacks::onWrite(NimBLECharacteristic* pCharacteri
 void BLEServerController::handleIncomingRaw(const std::vector<uint8_t>& buf) {
    Proto::Frame frame;
    if (!Proto::decode(buf, frame)) {
-      Serial.println("[BLE] Invalid frame: bad headers or too short");
+      #ifdef DEBUG
+         Serial.println("[BLE] Invalid frame: bad headers or too short");
+      #endif
       return;
    }
    
@@ -130,12 +133,19 @@ void BLEServerController::handleIncomingRaw(const std::vector<uint8_t>& buf) {
 void BLEServerController::ServerCallbacks::onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) {
    (void)pServer; (void)connInfo;
    _parent._connected = true;
-   Serial.println("[BLE] Central connected");
+   #ifdef DEBUG
+      Serial.println("[BLE] Central connected");
+   #endif
 }
 
 void BLEServerController::ServerCallbacks::onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) {
    (void)pServer; (void)connInfo; (void)reason;
    _parent._connected = false;
-   Serial.println("[BLE] Central disconnected, restarting advertising");
+   #ifdef DEBUG
+      Serial.println("[BLE] Central disconnected, restarting advertising");
+   #else
+      delay(10);
+   #endif
+   
    NimBLEDevice::startAdvertising(0);
 }

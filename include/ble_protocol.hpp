@@ -215,23 +215,29 @@ namespace Proto {
     * Returns true on success (headers match and at least 3 bytes present).
     */
    inline bool decode(const uint8_t* data, size_t len, Frame& out) {
-      Serial.print("Got data: [ ");
-      for(size_t i = 0; i<len; i++){
-         Serial.print("0x");
-         Serial.print(data[i], HEX);
-         Serial.print(", ");
-      }
-      Serial.println();
+      #ifdef DEBUG
+         Serial.print("Got data: [ ");
+         for(size_t i = 0; i<len; i++){
+            Serial.print("0x");
+            Serial.print(data[i], HEX);
+            Serial.print(", ");
+         }
+         Serial.println();
+      #endif
       
       if(!data || len < 4) {
-         Serial.println("No data or under len of 4");
+         #ifdef DEBUG
+            Serial.println("No data or under len of 4");
+         #endif
          return false;               // need at least H1,H2,ID,CHK
       }
       if (data[0] != HEAD_BYTE_0 || data[1] != HEAD_BYTE_1) {
-         Serial.print("Incorrect header bytes: 0x");
-         Serial.print(data[0], HEX);
-         Serial.print(", 0x");
-         Serial.println(data[1], HEX);
+         #ifdef DEBUG
+            Serial.print("Incorrect header bytes: 0x");
+            Serial.print(data[0], HEX);
+            Serial.print(", 0x");
+            Serial.println(data[1], HEX);
+         #endif
          return false;               // need at least H1,H2,ID,CHK
       }
       
@@ -245,10 +251,12 @@ namespace Proto {
          calc ^= data[i]; 
       }
       if (calc != recv_chk) {
-         Serial.print("Checksum Failed: rx 0x");
-         Serial.print(recv_chk, HEX);
-         Serial.print(" vs c: 0x");
-         Serial.println(calc, HEX);
+         #ifdef DEBUG
+            Serial.print("Checksum Failed: rx 0x");
+            Serial.print(recv_chk, HEX);
+            Serial.print(" vs c: 0x");
+            Serial.println(calc, HEX);
+         #endif
          // return false; // Cyheck
       }
       
